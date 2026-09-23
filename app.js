@@ -100,6 +100,7 @@ const state = {
   chapter: 1,
   verse: null,
   versions: ['kornkrv', 'korhrv', 'kornrsv'],
+  searchVersions: ['kornkrv', 'korhrv', 'kornrsv'],
   font: 18,
   night: false,
   readMode: false,
@@ -122,6 +123,10 @@ function loadPrefs() {
       const ok = saved.versions.filter((id) => VERSIONS.some((v) => v.id === id));
       if (ok.length) state.versions = ok;
     }
+    if (Array.isArray(saved.searchVersions) && saved.searchVersions.length) {
+      const okS = saved.searchVersions.filter((id) => VERSIONS.some((v) => v.id === id));
+      if (okS.length) state.searchVersions = okS;
+    }
     if (saved.font) state.font = saved.font;
     if (saved.night) state.night = true;
     if (saved.readMode) state.readMode = true;
@@ -135,6 +140,7 @@ function savePrefs() {
     book: state.book,
     chapter: state.chapter,
     versions: state.versions,
+    searchVersions: state.searchVersions,
     font: state.font,
     night: state.night,
     readMode: state.readMode,
@@ -425,43 +431,88 @@ function parseQuery(input) {
 async function searchText(query) {
   const terms = query.trim().split(/\s+/).filter(Boolean);
   if (!terms.length) return;
-  const main = shownVersions()[0];
+  const chosen = VERSIONS.filter((v) => state.searchVersions.includes(v.id));
+  const versionsToSearch = chosen.length ? chosen : [shownVersions()[0]];
   $('results').hidden = false;
   $('board').hidden = true;
-  $('results').innerHTML = '<p class="muted">' + main.name + '에서 찾는 중입니다.</p>';
-  try {
-    await loadVersion(main.id);
-  } catch {
-    toast('본문을 불러오지 못했습니다');
-    return;
-  }
-  const data = state.data.get(main.id);
+  $('results').innerHTML = '<p class="muted">찾는 중입니다.</p>';
+  const settled = await Promise.allSettled(versionsToSearch.map((v) => loadVersion(v.id)));
+  const failed = versionsToSearch.filter((v, i) => settled[i].status === 'rejected');
+  if (failed.length) toast(failed.map((v) => v.name).join(', ') + ' 불러오지 못했습니다');
+  const ok = versionsToSearch.filter((v, i) => settled[i].status === 'fulfilled');
   const hits = [];
-  for (let b = 0; b < BOOKS.length; b++) {
-    const chapters = data[b] || [];
-    for (let c = 0; c < chapters.length; c++) {
-      const verses = chapters[c] || [];
-      for (let v = 0; v < verses.length; v++) {
-        const text = verses[v];
-        if (text && terms.every((term) => text.includes(term))) {
-          hits.push({ book: b + 1, chapter: c + 1, verse: v + 1, text });
+  ok.forEach((version) => {
+    const data = state.data.get(version.id);
+    if (!data) return;
+    for (let b = 0; b < BOOKS.length; b++) {
+      const chapters = data[b] || [];
+      for (let c = 0; c < chapters.length; c++) {
+        const verses = chapters[c] || [];
+        for (let v = 0; v < verses.length; v++) {
+          const text = verses[v];
+          if (text && terms.every((term) => text.includes(term))) {
+            hits.push({ book: b + 1, chapter: c + 1, verse: v + 1, text, versionId: version.id, versionName: version.name });
+          }
         }
       }
     }
-  }
-  renderResults(hits, terms, main.name);
+  });
+  hits.sort((a, b) => a.book - b.book || a.chapter - b.chapter || a.verse - b.verse ||
+    VERSIONS.findIndex((v) => v.id === a.versionId) - VERSIONS.findIndex((v) => v.id === b.versionId));
+  renderResults(hits, terms);
 }
 
-function renderResults(hits, terms, versionName) {
+function renderResults(hits, terms) {
   state.terms = terms;
   const box = $('results');
   box.hidden = false;
   $('board').hidden = true;
   box.innerHTML = '';
+
+  const pickerLabel = document.createElement('div');
+  pickerLabel.className = 'search-versions-label';
+  const labelText = document.createElement('span');
+  labelText.textContent = '검색할 역본';
+  const allOn = state.searchVersions.length === VERSIONS.length;
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'linkish';
+  allBtn.textContent = allOn ? '전체 해제' : '전체 선택';
+  allBtn.onclick = () => {
+    state.searchVersions = allOn ? [shownVersions()[0].id] : VERSIONS.map((v) => v.id);
+    savePrefs();
+    searchText($('q').value.trim());
+  };
+  pickerLabel.appendChild(labelText);
+  pickerLabel.appendChild(allBtn);
+  box.appendChild(pickerLabel);
+
+  const pickerRow = document.createElement('div');
+  pickerRow.className = 'versions search-versions';
+  VERSIONS.forEach((version, i) => {
+    const on = state.searchVersions.includes(version.id);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip' + (on ? ' on ' + colorOf(i) : '');
+    btn.textContent = version.name;
+    btn.onclick = () => {
+      if (on) {
+        if (state.searchVersions.length === 1) { toast('한 역본은 남겨 두세요'); return; }
+        state.searchVersions = state.searchVersions.filter((id) => id !== version.id);
+      } else {
+        state.searchVersions = state.searchVersions.concat(version.id);
+      }
+      savePrefs();
+      searchText($('q').value.trim());
+    };
+    pickerRow.appendChild(btn);
+  });
+  box.appendChild(pickerRow);
+
   const head = document.createElement('div');
   head.className = 'result-head';
   const count = document.createElement('strong');
-  count.textContent = hits.length ? versionName + ' ' + hits.length + '구절' : '찾는 말이 없습니다';
+  count.textContent = hits.length ? hits.length + '구절 찾음' : '찾는 말이 없습니다';
   const back = document.createElement('button');
   back.type = 'button';
   back.className = 'ghost';
@@ -470,15 +521,23 @@ function renderResults(hits, terms, versionName) {
   head.appendChild(count);
   head.appendChild(back);
   box.appendChild(head);
+
   hits.slice(0, 100).forEach((hit) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'result';
+    const rowHead = document.createElement('div');
+    rowHead.className = 'result-row-head';
     const title = document.createElement('b');
     title.textContent = refLabel(hit.book, hit.chapter, hit.verse);
+    const tag = document.createElement('span');
+    tag.className = 'ver-tag ' + colorOf(VERSIONS.findIndex((v) => v.id === hit.versionId));
+    tag.textContent = hit.versionName;
+    rowHead.appendChild(title);
+    rowHead.appendChild(tag);
     const p = document.createElement('span');
     paint(p, hit.text);
-    btn.appendChild(title);
+    btn.appendChild(rowHead);
     btn.appendChild(p);
     btn.onclick = () => openPlace(hit.book, hit.chapter, hit.verse, terms);
     box.appendChild(btn);

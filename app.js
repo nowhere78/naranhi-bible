@@ -74,7 +74,8 @@ const BOOKS = [
 const VERSIONS = [
   { id: 'kornkrv', name: '개역개정' },
   { id: 'korhrv', name: '개역한글' },
-  { id: 'kornrsv', name: '새번역' },
+  { id: 'korsaehan', name: '새한글성경' },
+{ id: 'kornrsv', name: '새번역' },
   { id: 'kornkcb', name: '공동번역' },
   { id: 'korklb', name: '현대인의성경' },
   { id: 'koreasy', name: '쉬운성경' },

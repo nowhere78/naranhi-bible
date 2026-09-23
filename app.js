@@ -1,4 +1,4 @@
-const CHAPTERS = [50,40,27,36,34,24,21,4,31,24,22,25,29,36,10,13,10,42,150,31,12,8,66,52,5,48,12,14,3,9,1,4,7,3,3,3,2,14,4,28,16,24,21,28,16,16,13,6,6,4,4,5,3,6,4,3,1,13,5,5,3,5,1,1,1,22];
+const CHAPTERS = [50,40,27,36,34,24,21,4,31,24,22,25,29,36,10,13,10,42,150,31,12,8,66,52,5,48,12,14,3,9,1,4,7,3,3,3,2,14,4,28,16,24,21,28,16,16,13,6,6,4,4,5,3,6,4,3,1,13,5,5,3,5,1,1,1,22,14,16,19,51,6,16,15,7];
 const TOTAL = CHAPTERS.reduce((sum, n) => sum + n, 0);
 const PASS = '2628';
 
@@ -68,7 +68,15 @@ const BOOKS = [
   ['요한2서','요이','2 John',['요한2서','요한이서','요이','2john','2jn']],
   ['요한3서','요삼','3 John',['요한3서','요한삼서','요삼','3john','3jn']],
   ['유다서','유','Jude',['유다서','유다','유','jude']],
-  ['요한계시록','계','Revelation',['요한계시록','계시록','계','revelation','rev']]
+  ['요한계시록','계','Revelation',['요한계시록','계시록','계','revelation','rev']],
+  ['토빗기','토빗','Tobit',['토빗기','토빗','tobit','tob']],
+  ['유딧기','유딧','Judith',['유딧기','유딧','judith','jdt']],
+  ['지혜서','지혜서','Wisdom',['지혜서','지혜','wisdom','wis']],
+  ['집회서','집회서','Sirach',['집회서','집회','시라','sirach','sir']],
+  ['바룩서','바룩','Baruch',['바룩서','바룩','baruch','bar']],
+  ['마카베오상','마카상','1 Maccabees',['마카베오상','마카상','1maccabees','1mac','1ma']],
+  ['마카베오하','마카하','2 Maccabees',['마카베오하','마카하','2maccabees','2mac','2ma']],
+  ['에스델추가','에스델외경','Esther Additions',['에스델추가','에스델외경','estheradditions']]
 ].map((row, index) => ({ id: index + 1, ko: row[0], abbr: row[1], en: row[2], aliases: row[3] }));
 
 const VERSIONS = [
@@ -165,7 +173,7 @@ function fromIndex(index) {
     if (n < CHAPTERS[i]) return { book: i + 1, chapter: n + 1 };
     n -= CHAPTERS[i];
   }
-  return { book: 66, chapter: 22 };
+  return { book: BOOKS.length, chapter: CHAPTERS[CHAPTERS.length - 1] };
 }
 
 function refLabel(book, chapter, verse) {
@@ -239,7 +247,7 @@ function renderChrome() {
   $('scrub').value = String(chapterIndex(state.book, state.chapter));
   $('scrubLabel').textContent = book.abbr + ' ' + state.chapter + ' / ' + CHAPTERS[state.book - 1];
   const first = state.book === 1 && state.chapter === 1;
-  const last = state.book === 66 && state.chapter === CHAPTERS[65];
+  const last = state.book === BOOKS.length && state.chapter === CHAPTERS[CHAPTERS.length - 1];
   $('prev').disabled = first;
   $('prev2').disabled = first;
   $('next').disabled = last;
@@ -429,7 +437,7 @@ async function searchText(query) {
   }
   const data = state.data.get(main.id);
   const hits = [];
-  for (let b = 0; b < 66; b++) {
+  for (let b = 0; b < BOOKS.length; b++) {
     const chapters = data[b] || [];
     for (let c = 0; c < chapters.length; c++) {
       const verses = chapters[c] || [];
@@ -539,7 +547,8 @@ function openBooks() {
     body.appendChild(row);
   }
   addBookGroup(body, '구약', BOOKS.slice(0, 39));
-  addBookGroup(body, '신약', BOOKS.slice(39));
+  addBookGroup(body, '신약', BOOKS.slice(39, 66));
+  addBookGroup(body, '외경(제2경전)', BOOKS.slice(66));
   $('bookDialog').showModal();
 }
 
@@ -586,7 +595,7 @@ function showChapters(book) {
 
 function applyHash() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').map(Number);
-  if (parts[0] >= 1 && parts[0] <= 66) {
+  if (parts[0] >= 1 && parts[0] <= BOOKS.length) {
     state.book = parts[0];
     state.chapter = parts[1] || 1;
     state.verse = parts[2] || null;

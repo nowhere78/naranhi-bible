@@ -107,6 +107,25 @@
         <button class="ghost" id="closePlan" type="button">닫기</button>
       </div>
     </div>
+    <div class="plan-setup">
+      <div class="plan-line">
+        <label for="planStart">시작일</label>
+        <input id="planStart" type="date" />
+        <label for="planPer">하루</label>
+        <input id="planPer" type="number" min="1" max="60" step="1" value="4" />
+        <span>장</span>
+        <button class="chip" type="button" data-days="365">1년</button>
+        <button class="chip" type="button" data-days="180">6개월</button>
+        <button class="chip" type="button" data-days="90">90일</button>
+        <button class="chip" type="button" data-days="730">2년</button>
+      </div>
+      <div class="plan-forecast" id="planForecast"></div>
+      <div class="plan-today">
+        <b>오늘 읽을 곳</b>
+        <div class="plan-today-list" id="planToday"></div>
+        <button class="ghost" id="planTodayDone" type="button">오늘치 읽음 표시</button>
+      </div>
+    </div>
     <div class="plan-summary" id="planSummary"></div>
     <div class="plan-bar"><span id="planBarFill"></span></div>
     <div id="planBody"></div>

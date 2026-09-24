@@ -96,6 +96,7 @@ const state = {
   readMode: false,
   marks: {},
   read: {},
+  plan: { start: null, perDay: 4 },
   recent: [],
   terms: [],
   data: new Map(),
@@ -119,6 +120,7 @@ function loadPrefs() {
     if (saved.readMode) state.readMode = true;
     if (saved.marks) state.marks = saved.marks;
     if (saved.read) state.read = saved.read;
+    if (saved.plan && saved.plan.perDay) state.plan = saved.plan;
     if (Array.isArray(saved.recent)) state.recent = saved.recent;
   } catch {}
 }
@@ -133,6 +135,7 @@ function savePrefs() {
     readMode: state.readMode,
     marks: state.marks,
     read: state.read,
+    plan: state.plan,
     recent: state.recent.slice(0, 8)
   }));
 }
@@ -566,8 +569,118 @@ function renderPlanSummary() {
   $('planBarFill').style.width = (s.done / s.total * 100) + '%';
 }
 
+
+function todayStr(date) {
+  const d = date || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function parseDay(text) {
+  const parts = String(text || '').split('-').map(Number);
+  if (parts.length !== 3 || !parts[0]) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function dayDiff(from, to) {
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+}
+
+function addDays(date, days) {
+  const d = new Date(date.getTime());
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function prettyDay(date) {
+  const names = ['일', '월', '화', '수', '목', '금', '토'];
+  return date.getFullYear() + '년 ' + (date.getMonth() + 1) + '월 ' + date.getDate() + '일 (' + names[date.getDay()] + ')';
+}
+
+function allChapters() {
+  const list = [];
+  for (let b = 1; b <= 66; b++) {
+    for (let c = 1; c <= CHAPTERS[b - 1]; c++) list.push([b, c]);
+  }
+  return list;
+}
+
+function nextUnread(count) {
+  const out = [];
+  for (const [b, c] of allChapters()) {
+    if (!isRead(b, c)) {
+      out.push([b, c]);
+      if (out.length >= count) break;
+    }
+  }
+  return out;
+}
+
+function planForecast() {
+  const done = readStats().done;
+  const remaining = TOTAL - done;
+  const perDay = Math.max(1, Number(state.plan.perDay) || 4);
+  const start = parseDay(state.plan.start) || new Date();
+  const today = parseDay(todayStr());
+  const elapsed = Math.max(0, dayDiff(start, today));
+  const target = Math.min(TOTAL, perDay * (elapsed + 1));
+  const daysLeft = Math.ceil(remaining / perDay);
+  const finish = addDays(today, Math.max(0, daysLeft - 1));
+  return { done, remaining, perDay, elapsed, target, gap: done - target, daysLeft, finish, wholeDays: Math.ceil(TOTAL / perDay) };
+}
+
+function renderForecast() {
+  const startInput = $('planStart');
+  const perInput = $('planPer');
+  if (!state.plan.start) state.plan.start = todayStr();
+  startInput.value = state.plan.start;
+  perInput.value = String(state.plan.perDay);
+
+  const f = planForecast();
+  const box = $('planForecast');
+  box.innerHTML = '';
+
+  const l1 = document.createElement('div');
+  l1.textContent = '하루 ' + f.perDay + '장이면 전체 ' + f.wholeDays + '일 과정입니다. 남은 ' + f.remaining + '장, ' + f.daysLeft + '일 걸립니다.';
+  const l2 = document.createElement('div');
+  l2.textContent = f.remaining === 0 ? '통독을 모두 마쳤습니다.' : '이대로 가면 ' + prettyDay(f.finish) + '에 마칩니다.';
+  const l3 = document.createElement('div');
+  l3.className = 'plan-gap ' + (f.gap >= 0 ? 'good' : 'late');
+  if (f.remaining === 0) l3.textContent = '수고하셨습니다.';
+  else if (f.gap >= 0) l3.textContent = '오늘까지 목표 ' + f.target + '장, 지금 ' + f.done + '장. ' + (f.gap === 0 ? '딱 맞습니다.' : f.gap + '장 앞서 있습니다.');
+  else l3.textContent = '오늘까지 목표 ' + f.target + '장, 지금 ' + f.done + '장. ' + (-f.gap) + '장 밀렸습니다.';
+
+  box.appendChild(l1);
+  box.appendChild(l2);
+  box.appendChild(l3);
+
+  const list = $('planToday');
+  list.innerHTML = '';
+  const todays = nextUnread(f.perDay);
+  if (!todays.length) {
+    const span = document.createElement('span');
+    span.className = 'muted';
+    span.textContent = '남은 장이 없습니다.';
+    list.appendChild(span);
+  } else {
+    todays.forEach(([b, c]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip';
+      btn.textContent = bookById(b).abbr + ' ' + c + '장';
+      btn.onclick = () => {
+        $('planDialog').close();
+        openPlace(b, c, null, []);
+      };
+      list.appendChild(btn);
+    });
+  }
+  $('planTodayDone').disabled = !todays.length;
+  $('planTodayDone').dataset.list = JSON.stringify(todays);
+}
+
 function renderPlan() {
   renderPlanSummary();
+  renderForecast();
   const body = $('planBody');
   body.innerHTML = '';
   [['구약', 0, 39], ['신약', 39, 66]].forEach(([label, from, to]) => {
@@ -777,6 +890,32 @@ function boot() {
   $('modeBtn').onclick = () => { state.readMode = !state.readMode; savePrefs(); openPlace(state.book, state.chapter, state.verse, state.terms); };
   $('bookBtn').onclick = openBooks;
   $('planBtn').onclick = openPlan;
+  $('planStart').onchange = () => {
+    state.plan.start = $('planStart').value || todayStr();
+    savePrefs();
+    renderPlan();
+  };
+  $('planPer').onchange = () => {
+    const n = Math.max(1, Math.min(60, Number($('planPer').value) || 4));
+    state.plan.perDay = n;
+    savePrefs();
+    renderPlan();
+  };
+  document.querySelectorAll('.plan-line .chip').forEach((btn) => {
+    btn.onclick = () => {
+      state.plan.perDay = Math.ceil(TOTAL / Number(btn.dataset.days));
+      savePrefs();
+      renderPlan();
+      toast('하루 ' + state.plan.perDay + '장으로 맞췄습니다');
+    };
+  });
+  $('planTodayDone').onclick = () => {
+    const list = JSON.parse($('planTodayDone').dataset.list || '[]');
+    list.forEach(([b, c]) => toggleRead(b, c, true));
+    renderPlan();
+    updateMarkButton();
+    toast(list.length + '장을 읽음으로 표시했습니다');
+  };
   $('closePlan').onclick = () => $('planDialog').close();
   $('planReset').onclick = () => {
     if (!confirm('통독 표시를 모두 지울까요?')) return;

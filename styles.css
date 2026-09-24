@@ -364,3 +364,29 @@ body.night .nav.done { background: #2f4c33; border-color: #48704c; }
   .plan-head { flex-direction: row; align-items: center; gap: 8px; }
   .plan-cell { width: 34px; height: 32px; }
 }
+
+.plan-setup {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.plan-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.plan-line label { font-size: 0.85rem; color: var(--muted); }
+.plan-line input[type="date"], .plan-line input[type="number"] {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 6px 10px;
+  outline: none;
+}
+.plan-line input[type="number"] { width: 68px; text-align: center; }
+.plan-forecast { font-size: 0.9rem; line-height: 1.7; margin-bottom: 10px; }
+.plan-gap { font-weight: 700; }
+.plan-gap.good { color: #2f6b34; }
+.plan-gap.late { color: #b4452f; }
+body.night .plan-gap.good { color: #93d69a; }
+body.night .plan-gap.late { color: #f0a08c; }
+.plan-today { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.plan-today-list { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 160px; }

@@ -1,4 +1,4 @@
-const CHAPTERS = [50,40,27,36,34,24,21,4,31,24,22,25,29,36,10,13,10,42,150,31,12,8,66,52,5,48,12,14,3,9,1,4,7,3,3,3,2,14,4,28,16,24,21,28,16,16,13,6,6,4,4,5,3,6,4,3,1,13,5,5,3,5,1,1,1,22,14,16,19,51,6,16,15,7];
+const CHAPTERS = [50,40,27,36,34,24,21,4,31,24,22,25,29,36,10,13,10,42,150,31,12,8,66,52,5,48,12,14,3,9,1,4,7,3,3,3,2,14,4,28,16,24,21,28,16,16,13,6,6,4,4,5,3,6,4,3,1,13,5,5,3,5,1,1,1,22];
 const TOTAL = CHAPTERS.reduce((sum, n) => sum + n, 0);
 const PASS = '2628';
 
@@ -68,22 +68,13 @@ const BOOKS = [
   ['요한2서','요이','2 John',['요한2서','요한이서','요이','2john','2jn']],
   ['요한3서','요삼','3 John',['요한3서','요한삼서','요삼','3john','3jn']],
   ['유다서','유','Jude',['유다서','유다','유','jude']],
-  ['요한계시록','계','Revelation',['요한계시록','계시록','계','revelation','rev']],
-  ['토빗기','토빗','Tobit',['토빗기','토빗','tobit','tob']],
-  ['유딧기','유딧','Judith',['유딧기','유딧','judith','jdt']],
-  ['지혜서','지혜서','Wisdom',['지혜서','지혜','wisdom','wis']],
-  ['집회서','집회서','Sirach',['집회서','집회','시라','sirach','sir']],
-  ['바룩서','바룩','Baruch',['바룩서','바룩','baruch','bar']],
-  ['마카베오상','마카상','1 Maccabees',['마카베오상','마카상','1maccabees','1mac','1ma']],
-  ['마카베오하','마카하','2 Maccabees',['마카베오하','마카하','2maccabees','2mac','2ma']],
-  ['에스델추가','에스델외경','Esther Additions',['에스델추가','에스델외경','estheradditions']]
+  ['요한계시록','계','Revelation',['요한계시록','계시록','계','revelation','rev']]
 ].map((row, index) => ({ id: index + 1, ko: row[0], abbr: row[1], en: row[2], aliases: row[3] }));
 
 const VERSIONS = [
   { id: 'kornkrv', name: '개역개정' },
   { id: 'korhrv', name: '개역한글' },
-  { id: 'korsaehan', name: '새한글성경' },
-{ id: 'kornrsv', name: '새번역' },
+  { id: 'kornrsv', name: '새번역' },
   { id: 'kornkcb', name: '공동번역' },
   { id: 'korklb', name: '현대인의성경' },
   { id: 'koreasy', name: '쉬운성경' },
@@ -100,11 +91,11 @@ const state = {
   chapter: 1,
   verse: null,
   versions: ['kornkrv', 'korhrv', 'kornrsv'],
-  searchVersions: ['kornkrv', 'korhrv', 'kornrsv'],
   font: 18,
   night: false,
   readMode: false,
   marks: {},
+  read: {},
   recent: [],
   terms: [],
   data: new Map(),
@@ -123,14 +114,11 @@ function loadPrefs() {
       const ok = saved.versions.filter((id) => VERSIONS.some((v) => v.id === id));
       if (ok.length) state.versions = ok;
     }
-    if (Array.isArray(saved.searchVersions) && saved.searchVersions.length) {
-      const okS = saved.searchVersions.filter((id) => VERSIONS.some((v) => v.id === id));
-      if (okS.length) state.searchVersions = okS;
-    }
     if (saved.font) state.font = saved.font;
     if (saved.night) state.night = true;
     if (saved.readMode) state.readMode = true;
     if (saved.marks) state.marks = saved.marks;
+    if (saved.read) state.read = saved.read;
     if (Array.isArray(saved.recent)) state.recent = saved.recent;
   } catch {}
 }
@@ -140,11 +128,11 @@ function savePrefs() {
     book: state.book,
     chapter: state.chapter,
     versions: state.versions,
-    searchVersions: state.searchVersions,
     font: state.font,
     night: state.night,
     readMode: state.readMode,
     marks: state.marks,
+    read: state.read,
     recent: state.recent.slice(0, 8)
   }));
 }
@@ -179,7 +167,7 @@ function fromIndex(index) {
     if (n < CHAPTERS[i]) return { book: i + 1, chapter: n + 1 };
     n -= CHAPTERS[i];
   }
-  return { book: BOOKS.length, chapter: CHAPTERS[CHAPTERS.length - 1] };
+  return { book: 66, chapter: 22 };
 }
 
 function refLabel(book, chapter, verse) {
@@ -253,7 +241,7 @@ function renderChrome() {
   $('scrub').value = String(chapterIndex(state.book, state.chapter));
   $('scrubLabel').textContent = book.abbr + ' ' + state.chapter + ' / ' + CHAPTERS[state.book - 1];
   const first = state.book === 1 && state.chapter === 1;
-  const last = state.book === BOOKS.length && state.chapter === CHAPTERS[CHAPTERS.length - 1];
+  const last = state.book === 66 && state.chapter === CHAPTERS[65];
   $('prev').disabled = first;
   $('prev2').disabled = first;
   $('next').disabled = last;
@@ -279,6 +267,8 @@ function renderChrome() {
     btn.onclick = () => openPlace(item.id, 1, null, []);
     $('abbrs').appendChild(btn);
   });
+  updateMarkButton();
+
   const current = $('abbrs').querySelector('.on');
   if (current) current.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
@@ -431,88 +421,43 @@ function parseQuery(input) {
 async function searchText(query) {
   const terms = query.trim().split(/\s+/).filter(Boolean);
   if (!terms.length) return;
-  const chosen = VERSIONS.filter((v) => state.searchVersions.includes(v.id));
-  const versionsToSearch = chosen.length ? chosen : [shownVersions()[0]];
+  const main = shownVersions()[0];
   $('results').hidden = false;
   $('board').hidden = true;
-  $('results').innerHTML = '<p class="muted">찾는 중입니다.</p>';
-  const settled = await Promise.allSettled(versionsToSearch.map((v) => loadVersion(v.id)));
-  const failed = versionsToSearch.filter((v, i) => settled[i].status === 'rejected');
-  if (failed.length) toast(failed.map((v) => v.name).join(', ') + ' 불러오지 못했습니다');
-  const ok = versionsToSearch.filter((v, i) => settled[i].status === 'fulfilled');
+  $('results').innerHTML = '<p class="muted">' + main.name + '에서 찾는 중입니다.</p>';
+  try {
+    await loadVersion(main.id);
+  } catch {
+    toast('본문을 불러오지 못했습니다');
+    return;
+  }
+  const data = state.data.get(main.id);
   const hits = [];
-  ok.forEach((version) => {
-    const data = state.data.get(version.id);
-    if (!data) return;
-    for (let b = 0; b < BOOKS.length; b++) {
-      const chapters = data[b] || [];
-      for (let c = 0; c < chapters.length; c++) {
-        const verses = chapters[c] || [];
-        for (let v = 0; v < verses.length; v++) {
-          const text = verses[v];
-          if (text && terms.every((term) => text.includes(term))) {
-            hits.push({ book: b + 1, chapter: c + 1, verse: v + 1, text, versionId: version.id, versionName: version.name });
-          }
+  for (let b = 0; b < 66; b++) {
+    const chapters = data[b] || [];
+    for (let c = 0; c < chapters.length; c++) {
+      const verses = chapters[c] || [];
+      for (let v = 0; v < verses.length; v++) {
+        const text = verses[v];
+        if (text && terms.every((term) => text.includes(term))) {
+          hits.push({ book: b + 1, chapter: c + 1, verse: v + 1, text });
         }
       }
     }
-  });
-  hits.sort((a, b) => a.book - b.book || a.chapter - b.chapter || a.verse - b.verse ||
-    VERSIONS.findIndex((v) => v.id === a.versionId) - VERSIONS.findIndex((v) => v.id === b.versionId));
-  renderResults(hits, terms);
+  }
+  renderResults(hits, terms, main.name);
 }
 
-function renderResults(hits, terms) {
+function renderResults(hits, terms, versionName) {
   state.terms = terms;
   const box = $('results');
   box.hidden = false;
   $('board').hidden = true;
   box.innerHTML = '';
-
-  const pickerLabel = document.createElement('div');
-  pickerLabel.className = 'search-versions-label';
-  const labelText = document.createElement('span');
-  labelText.textContent = '검색할 역본';
-  const allOn = state.searchVersions.length === VERSIONS.length;
-  const allBtn = document.createElement('button');
-  allBtn.type = 'button';
-  allBtn.className = 'linkish';
-  allBtn.textContent = allOn ? '전체 해제' : '전체 선택';
-  allBtn.onclick = () => {
-    state.searchVersions = allOn ? [shownVersions()[0].id] : VERSIONS.map((v) => v.id);
-    savePrefs();
-    searchText($('q').value.trim());
-  };
-  pickerLabel.appendChild(labelText);
-  pickerLabel.appendChild(allBtn);
-  box.appendChild(pickerLabel);
-
-  const pickerRow = document.createElement('div');
-  pickerRow.className = 'versions search-versions';
-  VERSIONS.forEach((version, i) => {
-    const on = state.searchVersions.includes(version.id);
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'chip' + (on ? ' on ' + colorOf(i) : '');
-    btn.textContent = version.name;
-    btn.onclick = () => {
-      if (on) {
-        if (state.searchVersions.length === 1) { toast('한 역본은 남겨 두세요'); return; }
-        state.searchVersions = state.searchVersions.filter((id) => id !== version.id);
-      } else {
-        state.searchVersions = state.searchVersions.concat(version.id);
-      }
-      savePrefs();
-      searchText($('q').value.trim());
-    };
-    pickerRow.appendChild(btn);
-  });
-  box.appendChild(pickerRow);
-
   const head = document.createElement('div');
   head.className = 'result-head';
   const count = document.createElement('strong');
-  count.textContent = hits.length ? hits.length + '구절 찾음' : '찾는 말이 없습니다';
+  count.textContent = hits.length ? versionName + ' ' + hits.length + '구절' : '찾는 말이 없습니다';
   const back = document.createElement('button');
   back.type = 'button';
   back.className = 'ghost';
@@ -521,23 +466,15 @@ function renderResults(hits, terms) {
   head.appendChild(count);
   head.appendChild(back);
   box.appendChild(head);
-
   hits.slice(0, 100).forEach((hit) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'result';
-    const rowHead = document.createElement('div');
-    rowHead.className = 'result-row-head';
     const title = document.createElement('b');
     title.textContent = refLabel(hit.book, hit.chapter, hit.verse);
-    const tag = document.createElement('span');
-    tag.className = 'ver-tag ' + colorOf(VERSIONS.findIndex((v) => v.id === hit.versionId));
-    tag.textContent = hit.versionName;
-    rowHead.appendChild(title);
-    rowHead.appendChild(tag);
     const p = document.createElement('span');
     paint(p, hit.text);
-    btn.appendChild(rowHead);
+    btn.appendChild(title);
     btn.appendChild(p);
     btn.onclick = () => openPlace(hit.book, hit.chapter, hit.verse, terms);
     box.appendChild(btn);
@@ -584,6 +521,123 @@ function setMark(color) {
   renderBoard();
 }
 
+
+function readKey(book, chapter) { return book + '-' + chapter; }
+function isRead(book, chapter) { return !!state.read[readKey(book, chapter)]; }
+
+function toggleRead(book, chapter, force) {
+  const key = readKey(book, chapter);
+  const next = force === undefined ? !state.read[key] : force;
+  if (next) state.read[key] = 1; else delete state.read[key];
+  savePrefs();
+  return next;
+}
+
+function readStats() {
+  let ot = 0, nt = 0;
+  for (let b = 1; b <= 66; b++) {
+    for (let c = 1; c <= CHAPTERS[b - 1]; c++) {
+      if (isRead(b, c)) { if (b <= 39) ot++; else nt++; }
+    }
+  }
+  const otTotal = CHAPTERS.slice(0, 39).reduce((a, n) => a + n, 0);
+  const ntTotal = TOTAL - otTotal;
+  return { ot, nt, done: ot + nt, otTotal, ntTotal, total: TOTAL };
+}
+
+function bookDone(book) {
+  let n = 0;
+  for (let c = 1; c <= CHAPTERS[book - 1]; c++) if (isRead(book, c)) n++;
+  return n;
+}
+
+function updateMarkButton() {
+  const btn = $('markRead');
+  if (!btn) return;
+  const done = isRead(state.book, state.chapter);
+  btn.textContent = done ? '읽음 취소' : '읽음 표시';
+  btn.classList.toggle('done', done);
+}
+
+function renderPlanSummary() {
+  const s = readStats();
+  const pct = Math.round((s.done / s.total) * 1000) / 10;
+  $('planSummary').textContent = '전체 ' + s.done + ' / ' + s.total + '장 (' + pct + '%)  ·  구약 ' + s.ot + '/' + s.otTotal + '  ·  신약 ' + s.nt + '/' + s.ntTotal;
+  $('planBarFill').style.width = (s.done / s.total * 100) + '%';
+}
+
+function renderPlan() {
+  renderPlanSummary();
+  const body = $('planBody');
+  body.innerHTML = '';
+  [['구약', 0, 39], ['신약', 39, 66]].forEach(([label, from, to]) => {
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.textContent = label;
+    body.appendChild(title);
+    BOOKS.slice(from, to).forEach((book) => {
+      const row = document.createElement('div');
+      row.className = 'plan-row';
+
+      const head = document.createElement('div');
+      head.className = 'plan-head';
+      const name = document.createElement('button');
+      name.type = 'button';
+      name.className = 'plan-book';
+      const done = bookDone(book.id);
+      name.textContent = book.ko;
+      if (done === CHAPTERS[book.id - 1]) name.classList.add('full');
+      name.title = book.ko + ' 전체 표시 또는 지우기';
+      name.onclick = () => {
+        const all = bookDone(book.id) === CHAPTERS[book.id - 1];
+        for (let c = 1; c <= CHAPTERS[book.id - 1]; c++) toggleRead(book.id, c, !all);
+        renderPlan();
+        updateMarkButton();
+      };
+      const cnt = document.createElement('span');
+      cnt.className = 'plan-count';
+      cnt.textContent = done + '/' + CHAPTERS[book.id - 1];
+      head.appendChild(name);
+      head.appendChild(cnt);
+
+      const cells = document.createElement('div');
+      cells.className = 'plan-cells';
+      for (let c = 1; c <= CHAPTERS[book.id - 1]; c++) {
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'plan-cell' + (isRead(book.id, c) ? ' on' : '') + (book.id === state.book && c === state.chapter ? ' here' : '');
+        cell.textContent = String(c);
+        cell.onclick = (event) => {
+          if (event.shiftKey) {
+            $('planDialog').close();
+            openPlace(book.id, c, null, []);
+            return;
+          }
+          toggleRead(book.id, c);
+          renderPlan();
+          updateMarkButton();
+        };
+        cell.ondblclick = () => {
+          $('planDialog').close();
+          openPlace(book.id, c, null, []);
+        };
+        cells.appendChild(cell);
+      }
+
+      row.appendChild(head);
+      row.appendChild(cells);
+      body.appendChild(row);
+    });
+  });
+}
+
+function openPlan() {
+  renderPlan();
+  $('planDialog').showModal();
+  const here = $('planBody').querySelector('.plan-cell.here');
+  if (here) here.scrollIntoView({ block: 'center' });
+}
+
 function openBooks() {
   $('dialogTitle').textContent = '성경 찾기';
   const body = $('dialogBody');
@@ -606,8 +660,7 @@ function openBooks() {
     body.appendChild(row);
   }
   addBookGroup(body, '구약', BOOKS.slice(0, 39));
-  addBookGroup(body, '신약', BOOKS.slice(39, 66));
-  addBookGroup(body, '외경(제2경전)', BOOKS.slice(66));
+  addBookGroup(body, '신약', BOOKS.slice(39));
   $('bookDialog').showModal();
 }
 
@@ -654,7 +707,7 @@ function showChapters(book) {
 
 function applyHash() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').map(Number);
-  if (parts[0] >= 1 && parts[0] <= BOOKS.length) {
+  if (parts[0] >= 1 && parts[0] <= 66) {
     state.book = parts[0];
     state.chapter = parts[1] || 1;
     state.verse = parts[2] || null;
@@ -723,6 +776,21 @@ function boot() {
   $('nightBtn').onclick = () => { state.night = !state.night; savePrefs(); renderChrome(); };
   $('modeBtn').onclick = () => { state.readMode = !state.readMode; savePrefs(); openPlace(state.book, state.chapter, state.verse, state.terms); };
   $('bookBtn').onclick = openBooks;
+  $('planBtn').onclick = openPlan;
+  $('closePlan').onclick = () => $('planDialog').close();
+  $('planReset').onclick = () => {
+    if (!confirm('통독 표시를 모두 지울까요?')) return;
+    state.read = {};
+    savePrefs();
+    renderPlan();
+    updateMarkButton();
+    toast('통독 표시를 지웠습니다');
+  };
+  $('markRead').onclick = () => {
+    const now = toggleRead(state.book, state.chapter);
+    updateMarkButton();
+    toast(bookById(state.book).ko + ' ' + state.chapter + '장 ' + (now ? '읽음으로 표시했습니다' : '표시를 지웠습니다'));
+  };
   $('closeBooks').onclick = () => $('bookDialog').close();
   $('aboutBtn').onclick = () => $('aboutDialog').showModal();
   $('closeAbout').onclick = () => $('aboutDialog').close();

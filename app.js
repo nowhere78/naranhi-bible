@@ -1,5 +1,5 @@
 const CHAPTERS = [50,40,27,36,34,24,21,4,31,24,22,25,29,36,10,13,10,42,150,31,12,8,66,52,5,48,12,14,3,9,1,4,7,3,3,3,2,14,4,28,16,24,21,28,16,16,13,6,6,4,4,5,3,6,4,3,1,13,5,5,3,5,1,1,1,22];
-const EXTRA_CHAPTERS = [14, 16, 19, 51, 6, 16, 15, 7];
+const EXTRA_CHAPTERS = [14, 16, 19, 51, 6, 16, 15, 7, 14];
 const TOTAL = CHAPTERS.reduce((sum, n) => sum + n, 0);
 EXTRA_CHAPTERS.forEach((n) => CHAPTERS.push(n));
 const CANON = 66;
@@ -79,7 +79,8 @@ const BOOKS = [
   ['바룩','바룩','Baruch',['바룩','baruch','bar']],
   ['마카베오상','마카상','1 Maccabees',['마카베오상','마카상','1maccabees','1macc','1mac']],
   ['마카베오하','마카하','2 Maccabees',['마카베오하','마카하','2maccabees','2macc','2mac']],
-  ['에스델부록','에부','Esther Additions',['에스델부록','에스더부록','에부','estheradd']]
+  ['에스델부록','에부','Esther Additions',['에스델부록','에스더부록','에부','estheradd']],
+  ['다니엘부록','단부','Daniel Additions',['다니엘부록','단부','수산나','벨과뱀','danieladd']]
 ].map((row, index) => ({ id: index + 1, ko: row[0], abbr: row[1], en: row[2], aliases: row[3], extra: index + 1 > 66 }));
 
 const VERSIONS = [
@@ -97,6 +98,8 @@ const VERSIONS = [
   { id: 'engkjv', name: 'KJV' }
 ];
 const PALETTE = ['sand', 'blue', 'green', 'rose'];
+const EXTRA_ORDER = [67, 68, 74, 69, 70, 71, 75, 72, 73];
+function extraBooks() { return EXTRA_ORDER.map((id) => BOOKS[id - 1]).filter(Boolean); }
 
 const state = {
   book: 1,
@@ -285,7 +288,7 @@ function renderChrome() {
   });
 
   $('abbrs').innerHTML = '';
-  BOOKS.forEach((item) => {
+  BOOKS.slice(0, CANON).concat(extraBooks()).forEach((item) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = item.abbr;
@@ -329,6 +332,7 @@ function renderBoard() {
   }
 
   for (let i = 0; i < max; i++) {
+    if (!texts.some((rows) => rows && rows[i])) continue;
     const row = document.createElement('div');
     row.className = 'verse-row' + (state.verse === i + 1 ? ' on' : '');
     row.id = 'v' + (i + 1);
@@ -391,6 +395,9 @@ async function openPlace(book, chapter, verse, terms) {
   const wanted = shownVersions();
   await Promise.all(wanted.map((v) => loadVersion(v.id).catch(() => toast(v.name + '을 불러오지 못했습니다'))));
   if (id !== state.loadId) return;
+  if (state.book > CANON && !chapterFilled(state.book, state.chapter)) {
+    state.chapter = nearestFilled(state.book, state.chapter, 1);
+  }
   renderChrome();
   renderBoard();
   if (verse) {
@@ -404,10 +411,26 @@ async function openPlace(book, chapter, verse, terms) {
   remember();
 }
 
+function chapterFilled(book, chapter) {
+  const data = state.data.get('kornkcb');
+  if (!data || !data[book - 1]) return true;
+  const rows = data[book - 1][chapter - 1];
+  return !!(rows && rows.some((t) => t));
+}
+
+function nearestFilled(book, chapter, dir) {
+  const max = CHAPTERS[book - 1];
+  for (let c = chapter; c >= 1 && c <= max; c += dir) if (chapterFilled(book, c)) return c;
+  for (let c = 1; c <= max; c++) if (chapterFilled(book, c)) return c;
+  return chapter;
+}
+
 function step(delta) {
   if (state.book > CANON) {
-    const target = state.chapter + delta;
-    if (target < 1 || target > CHAPTERS[state.book - 1]) return;
+    let target = state.chapter + delta;
+    const max = CHAPTERS[state.book - 1];
+    while (target >= 1 && target <= max && !chapterFilled(state.book, target)) target += delta;
+    if (target < 1 || target > max) return;
     openPlace(state.book, target, null, []);
     return;
   }
@@ -808,7 +831,7 @@ function openBooks() {
   }
   addBookGroup(body, '구약', BOOKS.slice(0, 39));
   addBookGroup(body, '신약', BOOKS.slice(39, 66));
-  addBookGroup(body, '외경 (공동번역)', BOOKS.slice(66));
+  addBookGroup(body, '외경 (공동번역)', extraBooks());
   $('bookDialog').showModal();
 }
 

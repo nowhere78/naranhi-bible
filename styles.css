@@ -390,3 +390,6 @@ body.night .plan-gap.good { color: #93d69a; }
 body.night .plan-gap.late { color: #f0a08c; }
 .plan-today { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .plan-today-list { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 160px; }
+
+.abbrs button.extra { color: var(--accent); font-style: italic; }
+.abbrs button.extra.on { color: #fffaf3; font-style: normal; }

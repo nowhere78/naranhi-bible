@@ -1,5 +1,8 @@
 const CHAPTERS = [50,40,27,36,34,24,21,4,31,24,22,25,29,36,10,13,10,42,150,31,12,8,66,52,5,48,12,14,3,9,1,4,7,3,3,3,2,14,4,28,16,24,21,28,16,16,13,6,6,4,4,5,3,6,4,3,1,13,5,5,3,5,1,1,1,22];
+const EXTRA_CHAPTERS = [14, 16, 19, 51, 6, 16, 15, 7];
 const TOTAL = CHAPTERS.reduce((sum, n) => sum + n, 0);
+EXTRA_CHAPTERS.forEach((n) => CHAPTERS.push(n));
+const CANON = 66;
 const PASS = '2628';
 
 const BOOKS = [
@@ -69,7 +72,15 @@ const BOOKS = [
   ['요한3서','요삼','3 John',['요한3서','요한삼서','요삼','3john','3jn']],
   ['유다서','유','Jude',['유다서','유다','유','jude']],
   ['요한계시록','계','Revelation',['요한계시록','계시록','계','revelation','rev']]
-].map((row, index) => ({ id: index + 1, ko: row[0], abbr: row[1], en: row[2], aliases: row[3] }));
+  ['토비트','토비','Tobit',['토비트','토비','tobit','tob']],
+  ['유딧','유딧','Judith',['유딧','유디트','judith','jdt']],
+  ['지혜서','지혜','Wisdom',['지혜서','지혜','wisdom','wis']],
+  ['집회서','집회','Sirach',['집회서','집회','시라','sirach','sir']],
+  ['바룩','바룩','Baruch',['바룩','baruch','bar']],
+  ['마카베오상','마카상','1 Maccabees',['마카베오상','마카상','1maccabees','1macc','1mac']],
+  ['마카베오하','마카하','2 Maccabees',['마카베오하','마카하','2maccabees','2macc','2mac']],
+  ['에스델부록','에부','Esther Additions',['에스델부록','에스더부록','에부','estheradd']]
+].map((row, index) => ({ id: index + 1, ko: row[0], abbr: row[1], en: row[2], aliases: row[3], extra: index + 1 > 66 }));
 
 const VERSIONS = [
   { id: 'kornkrv', name: '개역개정' },
@@ -152,7 +163,12 @@ function orderedVersions() {
 }
 
 function shownVersions() {
-  const list = orderedVersions();
+  let list = orderedVersions();
+  if (state.book > CANON) {
+    const withBook = list.filter((v) => hasBook(v.id, state.book));
+    if (withBook.length) list = withBook;
+    else if (state.versions.includes('kornkcb')) list = [VERSIONS.find((v) => v.id === 'kornkcb')];
+  }
   return state.readMode ? list.slice(0, 1) : list;
 }
 
@@ -225,6 +241,11 @@ function loadVersion(id) {
   return job;
 }
 
+function hasBook(id, book) {
+  const data = state.data.get(id);
+  return !!(data && data[book - 1] && data[book - 1].length);
+}
+
 function chapterOf(id, book, chapter) {
   const data = state.data.get(id);
   if (!data) return null;
@@ -242,10 +263,11 @@ function renderChrome() {
   document.body.classList.toggle('night', state.night);
   document.body.classList.toggle('read-mode', state.readMode);
   $('scrub').max = String(TOTAL - 1);
-  $('scrub').value = String(chapterIndex(state.book, state.chapter));
-  $('scrubLabel').textContent = book.abbr + ' ' + state.chapter + ' / ' + CHAPTERS[state.book - 1];
-  const first = state.book === 1 && state.chapter === 1;
-  const last = state.book === 66 && state.chapter === CHAPTERS[65];
+  $('scrub').disabled = state.book > CANON;
+  if (state.book <= CANON) $('scrub').value = String(chapterIndex(state.book, state.chapter));
+  $('scrubLabel').textContent = book.abbr + ' ' + state.chapter + ' / ' + CHAPTERS[state.book - 1] + (state.book > CANON ? ' (외경)' : '');
+  const first = state.book > CANON ? state.chapter === 1 : (state.book === 1 && state.chapter === 1);
+  const last = state.book > CANON ? state.chapter === CHAPTERS[state.book - 1] : (state.book === 66 && state.chapter === CHAPTERS[65]);
   $('prev').disabled = first;
   $('prev2').disabled = first;
   $('next').disabled = last;
@@ -267,7 +289,7 @@ function renderChrome() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = item.abbr;
-    btn.className = item.id === state.book ? 'on' : '';
+    btn.className = (item.id === state.book ? 'on' : '') + (item.extra ? ' extra' : '');
     btn.onclick = () => openPlace(item.id, 1, null, []);
     $('abbrs').appendChild(btn);
   });
@@ -354,6 +376,11 @@ async function openPlace(book, chapter, verse, terms) {
   const id = ++state.loadId;
   state.book = book;
   state.chapter = Math.min(Math.max(1, chapter), CHAPTERS[book - 1]);
+  if (book > CANON && !state.versions.includes('kornkcb')) {
+    state.versions = VERSIONS.map((v) => v.id).filter((id) => id === 'kornkcb' || state.versions.includes(id));
+    savePrefs();
+    toast('외경은 공동번역에만 있어 공동번역을 켰습니다');
+  }
   state.verse = verse || null;
   if (terms) state.terms = terms;
   $('action').hidden = !verse;
@@ -378,6 +405,12 @@ async function openPlace(book, chapter, verse, terms) {
 }
 
 function step(delta) {
+  if (state.book > CANON) {
+    const target = state.chapter + delta;
+    if (target < 1 || target > CHAPTERS[state.book - 1]) return;
+    openPlace(state.book, target, null, []);
+    return;
+  }
   const next = fromIndex(chapterIndex(state.book, state.chapter) + delta);
   openPlace(next.book, next.chapter, null, []);
 }
@@ -437,7 +470,7 @@ async function searchText(query) {
   }
   const data = state.data.get(main.id);
   const hits = [];
-  for (let b = 0; b < 66; b++) {
+  for (let b = 0; b < Math.min(data.length, BOOKS.length); b++) {
     const chapters = data[b] || [];
     for (let c = 0; c < chapters.length; c++) {
       const verses = chapters[c] || [];
@@ -684,7 +717,7 @@ function renderPlan() {
   renderForecast();
   const body = $('planBody');
   body.innerHTML = '';
-  [['구약', 0, 39], ['신약', 39, 66]].forEach(([label, from, to]) => {
+  [['구약', 0, 39], ['신약', 39, CANON]].forEach(([label, from, to]) => {
     const title = document.createElement('div');
     title.className = 'section-title';
     title.textContent = label;
@@ -774,7 +807,8 @@ function openBooks() {
     body.appendChild(row);
   }
   addBookGroup(body, '구약', BOOKS.slice(0, 39));
-  addBookGroup(body, '신약', BOOKS.slice(39));
+  addBookGroup(body, '신약', BOOKS.slice(39, 66));
+  addBookGroup(body, '외경 (공동번역)', BOOKS.slice(66));
   $('bookDialog').showModal();
 }
 
@@ -821,7 +855,7 @@ function showChapters(book) {
 
 function applyHash() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').map(Number);
-  if (parts[0] >= 1 && parts[0] <= 66) {
+  if (parts[0] >= 1 && parts[0] <= BOOKS.length) {
     state.book = parts[0];
     state.chapter = parts[1] || 1;
     state.verse = parts[2] || null;

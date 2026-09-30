@@ -429,3 +429,6 @@ body.night .plan-gap.late { color: #f0a08c; }
 .ctx-swatches .swatch { width: 22px; height: 22px; }
 .ctx .item.mini { width: auto; padding: 4px 8px; font-size: 0.8rem; }
 .ctx-tip { font-size: 0.72rem; color: var(--muted); padding: 4px 10px 2px; }
+
+#actionLabel { white-space: nowrap; flex: none; font-weight: 700; color: var(--accent); padding: 0 6px; }
+.action { align-items: center; }

@@ -80,14 +80,39 @@
 
     <div class="action" id="action" hidden>
       <span id="actionLabel">1절</span>
-      <button type="button" id="copyOne">이 절 복사</button>
+      <button type="button" id="copyOne" class="primary">복사</button>
       <button type="button" id="copyAll">역본 모두 복사</button>
+      <button type="button" id="copyQuote">한 줄 인용</button>
+      <button type="button" id="multiBtn">여러 절 고르기</button>
       <button type="button" class="swatch gold" data-color="gold" aria-label="노랑 표시"></button>
       <button type="button" class="swatch green" data-color="green" aria-label="초록 표시"></button>
       <button type="button" class="swatch blue" data-color="blue" aria-label="파랑 표시"></button>
       <button type="button" class="swatch rose" data-color="rose" aria-label="분홍 표시"></button>
       <button type="button" id="clearMark">표시 지우기</button>
       <button type="button" id="shareBtn">링크</button>
+      <button type="button" id="clearSel">닫기</button>
+    </div>
+
+    <div class="ctx" id="ctx" role="menu" hidden>
+      <div class="ctx-head" id="ctxHead"></div>
+      <button type="button" class="item" data-act="one" id="ctxOne"><span>복사</span><kbd>Ctrl+C</kbd></button>
+      <button type="button" class="item" data-act="all"><span>모든 역본 나란히 복사</span></button>
+      <button type="button" class="item" data-act="quote"><span>한 줄 인용으로 복사</span></button>
+      <hr />
+      <button type="button" class="item" data-act="chapter" id="ctxChapter"><span>이 장 전체 복사</span></button>
+      <button type="button" class="item" data-act="link"><span>이 자리 링크 복사</span></button>
+      <hr />
+      <div class="ctx-swatches">
+        <span>형광펜</span>
+        <button type="button" class="swatch gold" data-color="gold" aria-label="노랑 표시"></button>
+        <button type="button" class="swatch green" data-color="green" aria-label="초록 표시"></button>
+        <button type="button" class="swatch blue" data-color="blue" aria-label="파랑 표시"></button>
+        <button type="button" class="swatch rose" data-color="rose" aria-label="분홍 표시"></button>
+        <button type="button" class="item mini" data-act="unmark">지우기</button>
+      </div>
+      <hr />
+      <button type="button" class="item" data-act="clear"><span>선택 풀기</span><kbd>Esc</kbd></button>
+      <div class="ctx-tip">Shift+클릭 범위 고르기 · Ctrl+클릭 여러 절 고르기</div>
     </div>
   </div>
 
@@ -139,7 +164,8 @@
     <div class="about">
       <p>역본 단추를 누르면 그 역본이 기둥으로 붙습니다. 같은 절 번호가 가로로 나란히 맞춰집니다.</p>
       <p>검색창에 <b>요3:16</b>이나 <b>시23</b>을 넣으면 그 자리로 갑니다. 낱말을 넣으면 맨 앞 역본에서 찾습니다.</p>
-      <p>절 번호를 누르면 복사와 형광펜 단추가 나옵니다. 좌우 방향키로 장을 넘깁니다.</p>
+      <p>절을 누르면 고르고, 오른쪽 클릭하면 복사 메뉴가 나옵니다. Shift+클릭으로 여러 절을 이어 고르고, Ctrl+클릭으로 띄엄띄엄 고릅니다. 고른 뒤 Ctrl+C를 누르면 누른 역본으로 바로 복사됩니다.</p>
+      <p>글자 일부만 복사하려면 마우스로 끌어서 고른 뒤 평소처럼 복사하세요. 좌우 방향키로 장을 넘깁니다.</p>
       <p>마지막 읽던 곳, 고른 역본, 글자 크기, 형광펜은 이 기기에 남습니다.</p>
     </div>
   </dialog>

@@ -111,6 +111,10 @@ const state = {
   readMode: false,
   marks: {},
   read: {},
+  sel: [],
+  selCol: null,
+  anchor: null,
+  multi: false,
   plan: { start: null, perDay: 4 },
   recent: [],
   terms: [],
@@ -334,17 +338,17 @@ function renderBoard() {
   for (let i = 0; i < max; i++) {
     if (!texts.some((rows) => rows && rows[i])) continue;
     const row = document.createElement('div');
-    row.className = 'verse-row' + (state.verse === i + 1 ? ' on' : '');
+    row.className = 'verse-row' + (isSel(i + 1) ? ' on' : '');
     row.id = 'v' + (i + 1);
     versions.forEach((version, colIndex) => {
       const cell = document.createElement('div');
       const mark = state.marks[state.book + '-' + state.chapter + '-' + (i + 1)];
       cell.className = 'cell ' + colorOf(colIndex) + (mark ? ' mark-' + mark : '');
+      cell.dataset.ver = version.id;
       const num = document.createElement('button');
       num.type = 'button';
       num.className = 'vnum';
       num.textContent = String(i + 1);
-      num.onclick = () => selectVerse(i + 1);
       const p = document.createElement('p');
       const rows = texts[colIndex];
       if (!rows) {
@@ -358,26 +362,140 @@ function renderBoard() {
       }
       cell.appendChild(num);
       cell.appendChild(p);
-      cell.onclick = (event) => { if (event.target !== num) selectVerse(i + 1); };
+      cell.onmousedown = (event) => { if (event.shiftKey) event.preventDefault(); };
+      cell.onclick = (event) => onVerseClick(event, i + 1, version.id);
+      cell.oncontextmenu = (event) => onVerseMenu(event, i + 1, version.id);
       row.appendChild(cell);
     });
     board.appendChild(row);
   }
 }
 
-function selectVerse(verse) {
-  state.verse = verse;
-  renderBoard();
-  const row = $('v' + verse);
-  if (row) row.scrollIntoView({ block: 'center' });
-  $('action').hidden = false;
-  $('actionLabel').textContent = refLabel(state.book, state.chapter, verse);
-  history.replaceState(null, '', location.pathname + '#/' + state.book + '/' + state.chapter + '/' + verse);
+function isSel(verse) { return state.sel.includes(verse); }
+
+function rangeLabel(list) {
+  const nums = [...list].sort((a, b) => a - b);
+  const parts = [];
+  let start = nums[0];
+  let prev = nums[0];
+  for (let i = 1; i <= nums.length; i++) {
+    const n = nums[i];
+    if (n === prev + 1) { prev = n; continue; }
+    parts.push(start === prev ? String(start) : start + '-' + prev);
+    start = n;
+    prev = n;
+  }
+  return parts.join(', ');
+}
+
+function selRef() {
+  if (!state.sel.length) return '';
+  return bookById(state.book).ko + ' ' + state.chapter + ':' + rangeLabel(state.sel);
+}
+
+function copyVersion() {
+  const shown = shownVersions();
+  return shown.find((v) => v.id === state.selCol) || shown[0];
+}
+
+function refreshSelection() {
+  const src = copyVersion();
+  document.querySelectorAll('#board .verse-row').forEach((row) => {
+    const on = isSel(Number(row.id.slice(1)));
+    row.classList.toggle('on', on);
+    row.querySelectorAll('.cell').forEach((cell) => cell.classList.toggle('src', on && src && cell.dataset.ver === src.id));
+  });
+  const bar = $('action');
+  $('multiBtn').classList.toggle('on', state.multi);
+  if (!state.sel.length) {
+    bar.hidden = true;
+    history.replaceState(null, '', location.pathname + '#/' + state.book + '/' + state.chapter);
+    return;
+  }
+  bar.hidden = false;
+  $('actionLabel').textContent = selRef() + (state.sel.length > 1 ? ' · ' + state.sel.length + '절' : '');
+  $('copyOne').textContent = (src ? src.name : '') + ' 복사';
+  history.replaceState(null, '', location.pathname + '#/' + state.book + '/' + state.chapter + '/' + state.sel[0]);
   remember();
+}
+
+function textPicked() {
+  const s = window.getSelection ? window.getSelection() : null;
+  return !!(s && String(s).trim());
+}
+
+function onVerseClick(event, verse, versionId) {
+  if (textPicked()) return;
+  hideMenu();
+  state.selCol = versionId;
+  if (event.shiftKey && state.anchor) {
+    const a = Math.min(state.anchor, verse);
+    const b = Math.max(state.anchor, verse);
+    const range = [];
+    for (let n = a; n <= b; n++) if ($('v' + n)) range.push(n);
+    state.sel = (event.ctrlKey || event.metaKey) ? [...new Set(state.sel.concat(range))] : range;
+  } else if (event.ctrlKey || event.metaKey || state.multi) {
+    state.sel = isSel(verse) ? state.sel.filter((n) => n !== verse) : state.sel.concat(verse);
+    state.anchor = verse;
+  } else {
+    state.sel = (state.sel.length === 1 && state.sel[0] === verse) ? [] : [verse];
+    state.anchor = verse;
+  }
+  state.sel.sort((a, b) => a - b);
+  state.verse = state.sel[0] || null;
+  refreshSelection();
+}
+
+function onVerseMenu(event, verse, versionId) {
+  if (textPicked()) return;
+  event.preventDefault();
+  state.selCol = versionId;
+  if (!isSel(verse)) {
+    state.sel = [verse];
+    state.anchor = verse;
+    state.verse = verse;
+  }
+  refreshSelection();
+  showMenu(event.clientX, event.clientY);
+}
+
+function clearSelection() {
+  state.sel = [];
+  state.verse = null;
+  hideMenu();
+  refreshSelection();
+}
+
+function showMenu(x, y) {
+  const menu = $('ctx');
+  const v = copyVersion();
+  $('ctxHead').textContent = selRef() + (state.sel.length > 1 ? ' · ' + state.sel.length + '절' : '');
+  $('ctxOne').querySelector('span').textContent = v.name + ' 복사';
+  $('ctxChapter').querySelector('span').textContent = v.name + ' ' + state.chapter + '장 전체 복사';
+  menu.hidden = false;
+  const w = menu.offsetWidth;
+  const h = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + 'px';
+  menu.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + 'px';
+  menu.querySelector('button.item').focus({ preventScroll: true });
+}
+
+function hideMenu() {
+  const menu = $('ctx');
+  if (menu) menu.hidden = true;
+}
+
+function selectVerse(verse) {
+  state.sel = [verse];
+  state.anchor = verse;
+  state.verse = verse;
+  refreshSelection();
 }
 
 async function openPlace(book, chapter, verse, terms) {
   const id = ++state.loadId;
+  const samePlace = state.book === book && state.chapter === chapter;
+  hideMenu();
   state.book = book;
   state.chapter = Math.min(Math.max(1, chapter), CHAPTERS[book - 1]);
   if (book > CANON && !state.versions.includes('kornkcb')) {
@@ -386,8 +504,10 @@ async function openPlace(book, chapter, verse, terms) {
     toast('외경은 공동번역에만 있어 공동번역을 켰습니다');
   }
   state.verse = verse || null;
+  if (!(samePlace && verse && state.sel.includes(verse))) state.sel = verse ? [verse] : [];
+  if (verse) state.anchor = verse;
   if (terms) state.terms = terms;
-  $('action').hidden = !verse;
+  $('action').hidden = !state.sel.length;
   renderChrome();
   renderBoard();
   history.replaceState(null, '', location.pathname + '#/' + book + '/' + state.chapter + (verse ? '/' + verse : ''));
@@ -400,11 +520,10 @@ async function openPlace(book, chapter, verse, terms) {
   }
   renderChrome();
   renderBoard();
+  refreshSelection();
   if (verse) {
     const row = $('v' + verse);
     if (row) row.scrollIntoView({ block: 'center' });
-    $('action').hidden = false;
-    $('actionLabel').textContent = refLabel(book, state.chapter, verse);
   } else {
     $('scroller').scrollTop = 0;
   }
@@ -547,38 +666,68 @@ function renderResults(hits, terms, versionName) {
   }
 }
 
-async function copyText(text) {
+async function copyText(text, message) {
+  let ok = false;
   try {
     await navigator.clipboard.writeText(text);
-    toast('복사했습니다');
-  } catch {
-    toast('복사하지 못했습니다');
+    ok = true;
+  } catch {}
+  if (!ok) {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.style.position = 'fixed';
+    box.style.opacity = '0';
+    document.body.appendChild(box);
+    box.select();
+    try { ok = document.execCommand('copy'); } catch {}
+    box.remove();
   }
+  toast(ok ? (message || '복사했습니다') : '복사하지 못했습니다');
 }
 
-function copyVerse(all) {
-  if (!state.verse) return;
-  const list = all ? shownVersions() : [shownVersions()[0]];
-  const lines = list.map((v) => {
+function buildCopy(mode) {
+  const nums = [...state.sel].sort((a, b) => a - b);
+  const ref = selRef();
+  const lines = (v) => {
     const rows = chapterOf(v.id, state.book, state.chapter) || [];
-    return v.name + ' ' + refLabel(state.book, state.chapter, state.verse) + '\n' + (rows[state.verse - 1] || '');
-  });
-  copyText(lines.join('\n\n'));
+    return nums.filter((n) => rows[n - 1]).map((n) => (nums.length > 1 ? n + ' ' : '') + rows[n - 1]);
+  };
+  if (mode === 'all') {
+    return ref + '\n\n' + shownVersions().map((v) => '[' + v.name + ']\n' + lines(v).join('\n')).join('\n\n');
+  }
+  const v = copyVersion();
+  if (mode === 'quote') {
+    const rows = chapterOf(v.id, state.book, state.chapter) || [];
+    const body = nums.map((n) => rows[n - 1] || '').filter(Boolean).join(' ');
+    return '\u201C' + body + '\u201D (' + ref + ', ' + v.name + ')';
+  }
+  return ref + ' (' + v.name + ')\n' + lines(v).join('\n');
 }
+
+function copySelection(mode) {
+  if (!state.sel.length) { toast('먼저 절을 눌러 골라 주세요'); return; }
+  const who = mode === 'all' ? '모든 역본' : copyVersion().name;
+  copyText(buildCopy(mode), selRef() + ' ' + who + ' 복사했습니다');
+}
+
+function copyVerse(all) { copySelection(all ? 'all' : 'one'); }
 
 function copyChapter() {
-  const main = shownVersions()[0];
-  const rows = chapterOf(main.id, state.book, state.chapter) || [];
-  const body = rows.map((text, i) => (i + 1) + ' ' + text).join('\n');
-  copyText(main.name + ' ' + bookById(state.book).ko + ' ' + state.chapter + '장\n' + body);
+  const v = copyVersion();
+  const rows = chapterOf(v.id, state.book, state.chapter) || [];
+  const body = rows.map((text, i) => (text ? (i + 1) + ' ' + text : '')).filter(Boolean).join('\n');
+  copyText(bookById(state.book).ko + ' ' + state.chapter + '장 (' + v.name + ')\n' + body, v.name + ' ' + state.chapter + '장 전체를 복사했습니다');
 }
 
 function setMark(color) {
-  if (!state.verse) return;
-  const key = state.book + '-' + state.chapter + '-' + state.verse;
-  if (color) state.marks[key] = color; else delete state.marks[key];
+  if (!state.sel.length) return;
+  state.sel.forEach((n) => {
+    const key = state.book + '-' + state.chapter + '-' + n;
+    if (color) state.marks[key] = color; else delete state.marks[key];
+  });
   savePrefs();
   renderBoard();
+  refreshSelection();
 }
 
 
@@ -991,8 +1140,29 @@ function boot() {
   $('closeBooks').onclick = () => $('bookDialog').close();
   $('aboutBtn').onclick = () => $('aboutDialog').showModal();
   $('closeAbout').onclick = () => $('aboutDialog').close();
-  $('copyOne').onclick = () => copyVerse(false);
-  $('copyAll').onclick = () => copyVerse(true);
+  $('copyOne').onclick = () => copySelection('one');
+  $('copyAll').onclick = () => copySelection('all');
+  $('copyQuote').onclick = () => copySelection('quote');
+  $('multiBtn').onclick = () => {
+    state.multi = !state.multi;
+    refreshSelection();
+    toast(state.multi ? '누르는 절마다 더해집니다. 다시 누르면 빠집니다' : '한 절씩 고르기로 돌아왔습니다');
+  };
+  $('clearSel').onclick = clearSelection;
+  $('ctx').addEventListener('click', (event) => {
+    const btn = event.target.closest('button');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    if (act === 'one' || act === 'all' || act === 'quote') copySelection(act);
+    if (act === 'chapter') copyChapter();
+    if (act === 'link') copyText(location.href, '링크를 복사했습니다');
+    if (act === 'unmark') setMark(null);
+    if (act === 'clear') { clearSelection(); return; }
+    hideMenu();
+  });
+  document.addEventListener('mousedown', (event) => { if (!event.target.closest('#ctx')) hideMenu(); });
+  window.addEventListener('resize', hideMenu);
+  $('scroller').addEventListener('scroll', hideMenu, { passive: true });
   $('copyChapter').onclick = copyChapter;
   $('clearMark').onclick = () => setMark(null);
   document.querySelectorAll('.swatch').forEach((btn) => { btn.onclick = () => setMark(btn.dataset.color); });
@@ -1001,9 +1171,15 @@ function boot() {
     const typing = event.target.matches('input, textarea');
     if (event.key === '/' && !typing) { event.preventDefault(); $('q').focus(); return; }
     if (typing) return;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+      if (textPicked() || !state.sel.length) return;
+      event.preventDefault();
+      copySelection('one');
+      return;
+    }
     if (event.key === 'ArrowLeft') step(-1);
     if (event.key === 'ArrowRight') step(1);
-    if (event.key === 'Escape') $('action').hidden = true;
+    if (event.key === 'Escape') { if (!$('ctx').hidden) hideMenu(); else clearSelection(); }
   });
 
   if (sessionStorage.getItem('naranhiOpen') === '1') startApp();
